@@ -19,6 +19,9 @@ src/dagwood/live/static/
 # OS
 .DS_Store
 
+# Tooling artifacts
+.playwright-mcp/
+
 # Note: a consuming repo's `.dag/dag.toml` is COMMITTED; only the geometry
 # sidecar `.dag/layout.json` is gitignored. That ignore lives in the template
 # dagwood writes via `dag init`, not here.
