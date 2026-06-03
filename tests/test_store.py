@@ -82,6 +82,16 @@ def test_bad_request_on_missing_field(tmp_path: Path):
     assert ei.value.code == "bad_request"
 
 
+def test_mutation_writes_oplog(tmp_path: Path):
+    from dagwood import oplog
+
+    s = make_store(tmp_path)
+    s.apply_mutation({"type": "add_node", "title": "x"}, now="t0", source="canvas")
+    recs = oplog.tail(s.ops_path, 5)
+    assert recs and recs[-1]["op"] == "add_node" and recs[-1]["source"] == "canvas"
+    assert len(recs[-1]["added"]) == 1
+
+
 def test_layout_persist(tmp_path: Path):
     s = make_store(tmp_path)
     s.handle_layout({"type": "set_layout", "id": "a", "x": 12, "y": 34})

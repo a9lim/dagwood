@@ -32,6 +32,7 @@
   let relayoutNonce = $state(0);
   let selectedId = $state<string | null>(null);
   let toast = $state<string | null>(null);
+  let frontierOnly = $state(false);
 
   let opCounter = 0;
   const pendingPos = new Map<string, Pos>();
@@ -75,6 +76,7 @@
     const frontier = new Set(g.frontier);
     const blocked = new Set(g.blocked);
     void relayoutNonce; // tracked: lets "Re-layout" force a rebuild
+    const fOnly = frontierOnly; // tracked: toggling the filter rebuilds
     const ov = untrack(() => overrides);
     const mine = ++token;
     void layoutGraph(
@@ -86,7 +88,13 @@
         id: n.id,
         type: 'task',
         position: ov[n.id] ?? pos[n.id] ?? { x: 0, y: 0 },
-        data: { title: n.title, status: n.status, ready: frontier.has(n.id), blocked: blocked.has(n.id) },
+        data: {
+          title: n.title,
+          status: n.status,
+          ready: frontier.has(n.id),
+          blocked: blocked.has(n.id),
+          dim: fOnly && !frontier.has(n.id),
+        },
       }));
       edges = eds.map((e) => ({
         id: e.id,
@@ -167,6 +175,15 @@
     }
   }
 
+  function onKey(e: KeyboardEvent): void {
+    const t = e.target as HTMLElement | null;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return;
+    if (e.key === 'a' || e.key === 'n') addTask();
+    else if (e.key === 'f') frontierOnly = !frontierOnly;
+    else if (e.key === 'r') reLayout();
+    else if (e.key === 'Escape') selectedId = null;
+  }
+
   const selected = $derived(selectedId ? (g.nodesById[selectedId] ?? null) : null);
   const counts = $derived.by(() => {
     const ns = g.nodes();
@@ -178,6 +195,8 @@
     };
   });
 </script>
+
+<svelte:window onkeydown={onKey} />
 
 <div class="wrap" ondblclick={onPaneDblClick} role="application">
   <SvelteFlow
@@ -207,8 +226,11 @@
     </Panel>
     <Panel position="top-right">
       <div class="toolbar">
-        <button onclick={() => addTask()}>+ Add task</button>
-        <button onclick={reLayout}>Re-layout</button>
+        <button onclick={() => addTask()} title="add a task (a)">+ Add task</button>
+        <button class:active={frontierOnly} onclick={() => (frontierOnly = !frontierOnly)} title="show only what's actionable (f)">
+          Frontier only
+        </button>
+        <button onclick={reLayout} title="re-flow with ELK (r)">Re-layout</button>
       </div>
     </Panel>
   </SvelteFlow>
@@ -256,6 +278,11 @@
   }
   .toolbar button:hover {
     background: #f1f5f9;
+  }
+  .toolbar button.active {
+    background: #2563eb;
+    color: #fff;
+    border-color: #2563eb;
   }
   .muted {
     color: #475569;

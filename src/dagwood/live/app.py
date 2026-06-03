@@ -56,7 +56,7 @@ def _handle_ws(store: Store, q: asyncio.Queue[dict[str, Any]], data: Any) -> Non
         if t in LAYOUT_TYPES:
             store.handle_layout(data)
             return
-        patch = store.apply_mutation(data, op_id=op_id)
+        patch = store.apply_mutation(data, op_id=op_id, source="canvas")
     except MutationError as e:
         q.put_nowait(protocol.error_msg(e.code, e.message, op_id=op_id))
         return
@@ -89,7 +89,7 @@ def create_app(
     async def mutate_endpoint(request: Request) -> Response:
         body: Any = await request.json()
         try:
-            patch = store.apply_mutation(body, op_id=_safe_op_id(body))
+            patch = store.apply_mutation(body, op_id=_safe_op_id(body), source="api")
         except MutationError as e:
             return JSONResponse(protocol.error_msg(e.code, e.message), status_code=400)
         store.broadcast(patch)

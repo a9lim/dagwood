@@ -8,6 +8,7 @@
     status: Status;
     ready: boolean;
     blocked: boolean;
+    dim?: boolean;
   }
 
   let { data }: NodeProps = $props();
@@ -17,7 +18,7 @@
   );
 </script>
 
-<div class="task {tone}">
+<div class="task {tone}" class:dim={d.dim}>
   <Handle type="target" position={Position.Top} />
   <div class="title">{d.title}</div>
   <div class="meta">
@@ -64,5 +65,8 @@
   }
   .task.doing {
     border-color: #f59e0b;
+  }
+  .task.dim {
+    opacity: 0.28;
   }
 </style>

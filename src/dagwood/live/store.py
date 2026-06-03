@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
+from .. import oplog
 from ..core import graph as gops
 from ..core import toml_io
 from ..core.errors import CycleError, DagError, NodeNotFound, ValidationError
@@ -79,6 +80,7 @@ class Store:
     def __init__(self, dag_path: str | Path, layout_path: str | Path) -> None:
         self.dag_path = Path(dag_path)
         self.layout_path = Path(layout_path)
+        self.ops_path = self.dag_path.parent / "ops.jsonl"
         self._subscribers: set[asyncio.Queue[dict[str, Any]]] = set()
         if self.dag_path.exists():
             self.graph = toml_io.load_toml(self.dag_path)
@@ -140,7 +142,13 @@ class Store:
             return gops.remove_node(self.graph, _req_str(data, "id"))
         raise MutationError("bad_request", f"unknown mutation type: {t!r}")
 
-    def apply_mutation(self, data: Any, now: str | None = None, op_id: str | None = None) -> dict[str, Any]:
+    def apply_mutation(
+        self,
+        data: Any,
+        now: str | None = None,
+        op_id: str | None = None,
+        source: str = "server",
+    ) -> dict[str, Any]:
         now = now or now_iso()
         try:
             newg = self._apply_to_graph(data, now)
@@ -158,6 +166,19 @@ class Store:
 
         self.graph = newg
         self._save()
+        op = data.get("type") if hasattr(data, "get") else None
+        oplog.append(
+            self.ops_path,
+            {
+                "ts": now,
+                "source": source,
+                "op": op,
+                "op_id": op_id,
+                "added": [n["id"] for n in added],
+                "updated": [n["id"] for n in updated],
+                "removed": removed,
+            },
+        )
         return protocol.patch_msg(self.graph, added, updated, removed, op_id=op_id)
 
     # --- external edits ------------------------------------------------------

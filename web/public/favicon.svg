@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- dagwood: a Dagwood sandwich — flat bread slices, an overstuffed stack
+       (the layers nod at the DAG), topped with the classic olive on a toothpick. -->
+  <!-- toothpick + olive -->
+  <rect x="15.45" y="2" width="1.1" height="6.6" rx="0.55" fill="#a9772f" />
+  <circle cx="16" cy="3.1" r="2.1" fill="#5f7d33" />
+  <circle cx="16" cy="3.1" r="0.75" fill="#d23b2e" />
+  <!-- top bread slice -->
+  <path d="M5 9.2Q5 6.6 7.2 6.6H24.8Q27 6.6 27 9.2V11.6H5Z" fill="#e7b15a" />
+  <!-- lettuce -->
+  <path d="M3.5 11.4q3-2 6 0t6 0 6 0 6 0v2.1q-3 2-6 0t-6 0-6 0-6 0z" fill="#7cb342" />
+  <!-- cheese -->
+  <rect x="4.2" y="13.1" width="23.6" height="2.5" rx="1" fill="#f6c12e" />
+  <!-- tomato -->
+  <rect x="3.8" y="15.1" width="24.4" height="2.7" rx="1.3" fill="#e0533c" />
+  <!-- ham -->
+  <rect x="4.2" y="17.4" width="23.6" height="2.8" rx="1.3" fill="#cf7f5c" />
+  <!-- lettuce -->
+  <path d="M3.5 19.9q3-2 6 0t6 0 6 0 6 0v2.1q-3 2-6 0t-6 0-6 0-6 0z" fill="#79b03f" />
+  <!-- bottom bread slice -->
+  <path d="M5 22H27V24.6Q27 27.2 24.8 27.2H7.2Q5 27.2 5 24.6Z" fill="#e7b15a" />
+</svg>
