@@ -12,8 +12,17 @@ export class GraphState {
   connected = $state(false);
   parseOk = $state(true);
   lastError = $state<string | null>(null);
+  // Optional hook for the canvas to react to raw messages (op_id correlation,
+  // error toasts). Called after internal state is updated.
+  onmessage: ((msg: ServerMessage) => void) | null = null;
 
   #ws: WebSocket | undefined;
+
+  send(msg: Record<string, unknown>): void {
+    if (this.#ws && this.#ws.readyState === WebSocket.OPEN) {
+      this.#ws.send(JSON.stringify(msg));
+    }
+  }
 
   connect(url: string): void {
     const ws = new WebSocket(url);
@@ -61,6 +70,7 @@ export class GraphState {
     } else if (msg.type === 'error') {
       this.lastError = msg.message;
     }
+    this.onmessage?.(msg);
   }
 
   nodes(): NodeData[] {
