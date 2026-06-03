@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.pyright/
+
+# Node / frontend
+node_modules/
+web/dist/
+src/dagwood/live/static/
+
+# OS
+.DS_Store
+
+# Note: a consuming repo's `.dag/dag.toml` is COMMITTED; only the geometry
+# sidecar `.dag/layout.json` is gitignored. That ignore lives in the template
+# dagwood writes via `dag init`, not here.
