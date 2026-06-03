@@ -33,6 +33,8 @@ dependencies = [
     "starlette>=0.40",
     "uvicorn[standard]>=0.30",
     "watchfiles>=0.21",
+    "mcp>=1.2.0",       # MCP server for coding-agent integration (M6)
+    "tomlkit>=0.13",    # round-trip TOML for `dag install codex`
 ]
 
 [project.urls]

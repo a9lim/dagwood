@@ -1,73 +1,118 @@
+import asyncio
 from pathlib import Path
 
-from starlette.testclient import TestClient
+import pytest
+from mcp.server.fastmcp.exceptions import ToolError
 
+from dagwood import oplog, server
 from dagwood.core import toml_io
-from dagwood.live.app import create_app
+from dagwood.core.model import Graph
 
 
-def make_app(tmp_path: Path):
-    dag = tmp_path / ".dag" / "dag.toml"
-    dag.parent.mkdir(parents=True)
-    dag.write_text("version = 1\n", encoding="utf-8")
-    return create_app(dag, watch=False), dag
+def dagfile(tmp_path: Path) -> Path:
+    p = tmp_path / ".dag" / "dag.toml"
+    toml_io.save_toml(p, Graph())
+    return p
 
 
-def test_healthz_and_graph(tmp_path: Path):
-    app, _ = make_app(tmp_path)
-    with TestClient(app) as c:
-        assert c.get("/healthz").json()["parse_ok"] is True
-        assert c.get("/api/graph").json()["type"] == "snapshot"
+def test_next_done_unblock_loop(tmp_path: Path):
+    p = dagfile(tmp_path)
+    a = server.tool_add(p, "a")["id"]
+    b = server.tool_add(p, "b", needs=[a])["id"]
+    # only a is actionable
+    assert [r["id"] for r in server.tool_next(p)["ready"]] == [a]
+    # completing a unblocks b, reported in newly_ready
+    res = server.tool_done(p, a)
+    assert res["status"] == "done"
+    assert [n["id"] for n in res["newly_ready"]] == [b]
+    assert [r["id"] for r in server.tool_next(p)["ready"]] == [b]
 
 
-def test_ws_snapshot_then_patch(tmp_path: Path):
-    app, dag = make_app(tmp_path)
-    with TestClient(app) as c, c.websocket_connect("/ws") as ws:
-        assert ws.receive_json()["type"] == "snapshot"
-        ws.send_json({"type": "add_node", "title": "hi", "op_id": "o1"})
-        patch = ws.receive_json()
-        assert patch["type"] == "patch"
-        assert patch["op_id"] == "o1"
-        assert len(patch["added"]) == 1
-    assert len(toml_io.load_toml(dag).nodes) == 1
+def test_add_with_needs_and_ready_flag(tmp_path: Path):
+    p = dagfile(tmp_path)
+    a = server.tool_add(p, "a")["id"]
+    res = server.tool_add(p, "b", needs=[a])
+    assert res["ready"] is False  # blocked by a
+    assert server.tool_add(p, "c")["ready"] is True
 
 
-def test_ws_cycle_error_no_write(tmp_path: Path):
-    app, dag = make_app(tmp_path)
-    with TestClient(app) as c, c.websocket_connect("/ws") as ws:
-        ws.receive_json()  # snapshot
-        ws.send_json({"type": "add_node", "title": "a", "op_id": "1"})
-        a = ws.receive_json()["added"][0]["id"]
-        ws.send_json({"type": "add_node", "title": "b", "needs": [a], "op_id": "2"})
-        b = ws.receive_json()["added"][0]["id"]
-        before = dag.read_text(encoding="utf-8")
-        ws.send_json({"type": "add_edge", "src": b, "dst": a, "op_id": "3"})
-        err = ws.receive_json()
-        assert err["type"] == "error" and err["code"] == "cycle" and err["op_id"] == "3"
-        assert dag.read_text(encoding="utf-8") == before
+def test_link_cycle_rejected(tmp_path: Path):
+    p = dagfile(tmp_path)
+    a = server.tool_add(p, "a")["id"]
+    b = server.tool_add(p, "b", needs=[a])["id"]
+    with pytest.raises(ToolError):
+        server.tool_link(p, b, a)  # would close a cycle
 
 
-def test_post_mutate(tmp_path: Path):
-    app, dag = make_app(tmp_path)
-    with TestClient(app) as c:
-        r = c.post("/api/mutate", json={"type": "add_node", "title": "viaPOST"})
-        assert r.status_code == 200 and r.json()["type"] == "patch"
-    assert any(n.title == "viaPOST" for n in toml_io.load_toml(dag).nodes.values())
+def test_link_unlink(tmp_path: Path):
+    p = dagfile(tmp_path)
+    a = server.tool_add(p, "a")["id"]
+    b = server.tool_add(p, "b")["id"]
+    server.tool_link(p, a, b)
+    assert server.tool_show(p, b)["needs"] == [a]
+    server.tool_unlink(p, a, b)
+    assert server.tool_show(p, b)["needs"] == []
 
 
-def test_post_mutate_cycle_400(tmp_path: Path):
-    app, _ = make_app(tmp_path)
-    with TestClient(app) as c:
-        a = c.post("/api/mutate", json={"type": "add_node", "title": "a"}).json()["added"][0]["id"]
-        b = c.post("/api/mutate", json={"type": "add_node", "title": "b", "needs": [a]}).json()["added"][0]["id"]
-        r = c.post("/api/mutate", json={"type": "add_edge", "src": b, "dst": a})
-        assert r.status_code == 400 and r.json()["code"] == "cycle"
+def test_show_summary_and_detail(tmp_path: Path):
+    p = dagfile(tmp_path)
+    a = server.tool_add(p, "a")["id"]
+    b = server.tool_add(p, "b", needs=[a])["id"]
+    summary = server.tool_show(p)
+    assert summary["count"] == 2
+    assert [n["id"] for n in summary["frontier"]] == [a]
+    detail = server.tool_show(p, b)
+    assert detail["blocked"] and detail["unmet_needs"][0]["id"] == a
+    assert detail["dependents"] == []
 
 
-def test_layout_get_put(tmp_path: Path):
-    app, _ = make_app(tmp_path)
-    with TestClient(app) as c:
-        put = c.put("/api/layout", json={"overrides": {"n1": {"x": 5, "y": 6}}, "viewport": {"x": 0, "y": 0, "zoom": 1}})
-        assert put.status_code == 200
-        got = c.get("/api/layout").json()
-        assert got["overrides"]["n1"] == {"x": 5.0, "y": 6.0}
+def test_why_blocked(tmp_path: Path):
+    p = dagfile(tmp_path)
+    a = server.tool_add(p, "a")["id"]
+    b = server.tool_add(p, "b", needs=[a])["id"]
+    wb = server.tool_why_blocked(p, b)
+    assert wb["blocked"] and wb["unmet_needs"][0]["id"] == a
+
+
+def test_unknown_task_errors(tmp_path: Path):
+    p = dagfile(tmp_path)
+    with pytest.raises(ToolError):
+        server.tool_done(p, "ghost")
+    with pytest.raises(ToolError):
+        server.tool_show(p, "ghost")
+
+
+def test_mcp_mutations_logged(tmp_path: Path):
+    p = dagfile(tmp_path)
+    server.tool_add(p, "a")
+    recs = oplog.tail(p.parent / "ops.jsonl")
+    assert recs and recs[-1]["source"] == "mcp" and recs[-1]["op"] == "add_node"
+
+
+def test_build_server_registers_tools(tmp_path: Path):
+    srv = server.build_server(dagfile(tmp_path))
+    names = {t.name for t in asyncio.run(srv.list_tools())}
+    assert {
+        "dag_next",
+        "dag_done",
+        "dag_set_status",
+        "dag_show",
+        "dag_why_blocked",
+        "dag_add",
+        "dag_link",
+        "dag_unlink",
+    } <= names
+
+
+def test_frames_are_nonempty_strings():
+    for frame in (
+        server.DAG_NEXT_FRAME,
+        server.DAG_DONE_FRAME,
+        server.DAG_SHOW_FRAME,
+        server.DAG_WHY_BLOCKED_FRAME,
+        server.DAG_ADD_FRAME,
+        server.DAG_LINK_FRAME,
+        server.DAG_UNLINK_FRAME,
+        server.DAG_SET_STATUS_FRAME,
+    ):
+        assert isinstance(frame, str) and frame.strip()

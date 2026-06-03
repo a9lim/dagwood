@@ -135,6 +135,21 @@ def build_parser() -> argparse.ArgumentParser:
     logp.add_argument("--path", default=None, help="path to .dag/dag.toml")
     logp.add_argument("-n", "--count", type=int, default=20, help="how many to show (default: 20)")
 
+    sub.add_parser("mcp", help="run the MCP server (stdio) for coding agents")
+
+    inst = sub.add_parser("install", help="register the MCP server into a client (claude-code, codex, ...)")
+    inst.add_argument("client", help="client name")
+    inst.add_argument("--dev-path", default=None, help="install a 'uv run' variant from a source checkout")
+    inst.add_argument("--dry-run", action="store_true", help="print what would change, write nothing")
+    inst.add_argument("--force", action="store_true", help="overwrite an existing different entry")
+
+    uninst = sub.add_parser("uninstall", help="remove the MCP server from a client")
+    uninst.add_argument("client", help="client name")
+
+    snip = sub.add_parser("snippet", help="print paste-able MCP config for a client")
+    snip.add_argument("client", help="client name")
+    snip.add_argument("--dev-path", default=None, help="emit a 'uv run' variant from a source checkout")
+
     return parser
 
 
@@ -153,6 +168,23 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_doctor(args)
     if command == "log":
         return _cmd_log(args)
+    if command == "mcp":
+        from .server import build_server
+
+        build_server().run("stdio")
+        return 0
+    if command == "install":
+        from .installer import install
+
+        return install(args.client, dev_path=args.dev_path, dry_run=args.dry_run, force=args.force)
+    if command == "uninstall":
+        from .installer import uninstall
+
+        return uninstall(args.client)
+    if command == "snippet":
+        from .snippet import run as snippet_run
+
+        return snippet_run(client=args.client, dev_path=args.dev_path)
     print(f"unknown command: {command}", file=sys.stderr)
     return 1
 
