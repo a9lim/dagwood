@@ -12,15 +12,15 @@ The whole state of a project is one file, `.dag/dag.toml`, and it lives in the r
 
 ## Install
 
-dagwood isn't on PyPI yet, so for now it's a source checkout. You need Python 3.11+, [uv](https://docs.astral.sh/uv/), and Node (for building the canvas).
+dagwood isn't on PyPI yet, so for now it's a source checkout. You need Python
+3.11+ and Node (for building the canvas).
 
 ```sh
 git clone https://github.com/a9lim/dagwood
 cd dagwood
-uv sync                                 # python deps into .venv
+python -m pip install -e ".[dev]"      # install into system Python 3.12
 cd web && npm install && npm run build  # build the canvas into the package
 cd ..
-uv tool install .                       # optional: put `dag` on your PATH for use in any repo
 ```
 
 The canvas build step matters: the built bundle is what `dag serve` serves, and it isn't checked in. If you skip it you get a placeholder page instead of the canvas.

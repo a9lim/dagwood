@@ -83,9 +83,9 @@ web/                 # Svelte 5 + Vite. Built into src/dagwood/live/static (giti
 ## Testing
 
 ```sh
-uv run pytest                 # full suite
-uv run pyright                # strict on src/dagwood
-uv run ruff check .
+python -m pytest                 # full suite
+pyright                # strict on src/dagwood
+ruff check .
 cd web && npm run check && npm run build   # svelte-check + build the canvas
 ```
 
@@ -93,7 +93,7 @@ The MCP server is exercised two ways: the `tool_*` handlers are called directly 
 
 ## Things that look like bugs but are not
 
-- **Editor pyright reports newly-added modules as unresolvable** and flags print/argparse args as unknown-typed. Stale editor cache from before the venv saw the module; `uv run pyright` resolves it. Restart the pyright server to clear the noise.
+- **Editor pyright reports newly-added modules as unresolvable** and flags print/argparse args as unknown-typed. Stale editor cache from before the venv saw the module; `pyright` resolves it. Restart the pyright server to clear the noise.
 - **`dag mcp` logs request lines to stderr.** That's the MCP SDK's own logging; stdout carries the JSON-RPC, so it's harmless. Never `print()` to stdout in the MCP path.
 - **Re-running ELK on a status-only change doesn't move nodes.** ELK layered is deterministic for a fixed node/edge set, so the canvas re-derives positions without anything jumping. The async-token in `Flow.svelte` drops stale layout results.
 - **MCP writes + a live server can lose an update** if a human canvas edit and an agent write land in the same millisecond (last-write-wins on that single atomic write; the watcher then adopts whatever hit disk). Documented in `server.py`. Fine for single-user; the airtight fix is to route MCP through the running server.
